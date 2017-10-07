@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project basedir="." name="cy-bss-server" default="default">
+<property environment="env"/>
+<property name="dist.dir" value="dist"/>
+<property name="src.classes.dir" value="src"/>		
+<property name="dist.lib.dir" value="${dist.dir}/lib"/>	
+<property name="dist.classes.dir" value="${dist.dir}/classes"/>	
+<echo>-- Start Display Property --</echo>
+<echo>Java Home: ${env.JAVA_HOME}</echo>
+<echo>Directory source: ${src.classes.dir} --</echo>	
+<echo>Directory destinazione: ${dist.dir} --</echo>
+<echo>-- End Display Property --</echo>
+	 						
+
+<target name="default" depends="setup,compile,buildjar"/> 
+
+<target name="setup">
+	<echo>-- 1. Setup --</echo>
+	<copy todir="${dist.lib.dir}">
+		<fileset dir="lib">
+			<exclude name="**/.*"/>
+		</fileset>
+	</copy>
+</target>				
+	
+<target name="compile">
+	<echo>-- 2. Compile --</echo>
+	<delete dir="${dist.classes.dir}"/>
+	<mkdir dir="${dist.classes.dir}"/>
+	<javac includeantruntime="false" destdir="${dist.classes.dir}" srcdir="${src.classes.dir}">
+		<classpath>
+			<fileset dir="${dist.lib.dir}">
+				<include name="*"/>
+			</fileset>
+		</classpath>
+	</javac>
+	<copy todir="${dist.classes.dir}" >
+	   <fileset dir="${src.classes.dir}">
+		  <include name="**/*.xml"/>
+		  <include name="**/*.xsl"/>
+		  <include name="**/*.properties"/>
+		</fileset>
+	 </copy>
+</target>
+	
+<target name="buildjar">
+	<echo>-- 3. Build Jar --</echo>
+	<jar basedir="${dist.classes.dir}" destfile="${dist.dir}/${ant.project.name}.jar" />
+	
+</target>	
+	
+
+</project>
