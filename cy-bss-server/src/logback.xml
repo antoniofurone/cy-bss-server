@@ -58,7 +58,7 @@
         <appender-ref ref="minuteRollingFileAppender"/>
     </logger>
    
-    <logger name="org.cysoft.bss.core.server" level="INFO">
+    <logger name="org.cysoft.bss.server" level="INFO">
         <appender-ref ref="dailyRollingFileAppender"/>
         <appender-ref ref="minuteRollingFileAppender"/>
     </logger>
