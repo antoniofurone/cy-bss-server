@@ -23,9 +23,18 @@ public class PurchaseExecutor extends ItemExecutor {
 		// TODO Auto-generated method stub
 		logger.info("exec() >>");
 		
+		lock();
+		ServerQueueItem item=reloadItem();
+		if (item.getServerId()!=getParent().server.getId())
+			return false;
+		
+		startExecution();
+		
+		
+		endExecution(ItemExecutor.RESULT_ITEM_OK);
 		
 		logger.info("exec() <<");
-		return false;
+		return true;
 	}
 
 	@Override

@@ -77,6 +77,7 @@ public class ServerProcess {
 		
 		nodeId=args[0];
 		init();
+		server.setStatus(Server.STATUS_RUNNING);
 		serverService.changeStatus(server.getId(), Server.STATUS_RUNNING);
 		
 		ForkJoinPool qiPool = new ForkJoinPool(6);
