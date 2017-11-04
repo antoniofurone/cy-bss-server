@@ -71,6 +71,9 @@ public class ServerLauncher implements CommandLineRunner{
 	
 	private static final Logger logger = LoggerFactory.getLogger(ServerLauncher.class);
 	
+	private static final String OPTION_B="-b";
+	private static final String OPTION_BATCH="-batch";
+	
 	@Autowired
 	Environment environment;
 	
@@ -286,7 +289,24 @@ public class ServerLauncher implements CommandLineRunner{
 	@Override
 	public void run(String... args) {
 		try {
-			serverProcess.run(args);
+			
+			if (args.length!=1 && args.length!=2){
+				String msgError="Number of parameters is wrong -> aspected <NodeId> or <-b/-batch> and <Batch Name>";
+				logger.error(msgError);
+				throw new CyBssException(msgError);
+			}
+			
+			if (args.length==1)
+				serverProcess.run(args);
+			else
+				{
+				if (args.length==2){
+					if (args[0].equals(OPTION_B)||args[0].equals(OPTION_BATCH)){
+						serverProcess.runBatch(args);
+					}
+				}
+			}
+			
 		} catch (CyBssException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -297,6 +317,7 @@ public class ServerLauncher implements CommandLineRunner{
 	public static void main(String[] args) {
 		// TODO Auto-generated method stub
 		logger.info("Start Server >>>");
+		
 		SpringApplication.run(ServerLauncher.class, args);
 	   	logger.info("End Server <<<");
 	}

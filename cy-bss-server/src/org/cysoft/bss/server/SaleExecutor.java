@@ -24,7 +24,7 @@ public class SaleExecutor  extends ItemExecutor{
 		
 		lock();
 		ServerQueueItem item=reloadItem();
-		if (item.getServerId()!=getParent().server.getId())
+		if (item.getServerId()!=getParentProcess().getServer().getId())
 			return false;
 		
 		startExecution();

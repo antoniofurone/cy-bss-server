@@ -63,6 +63,11 @@
         <appender-ref ref="minuteRollingFileAppender"/>
     </logger>
     
+    <logger name="org.cysoft.bss.server.batch.impl" level="INFO">
+        <appender-ref ref="dailyRollingFileAppender"/>
+        <appender-ref ref="minuteRollingFileAppender"/>
+    </logger>
+    
     <root level="INFO">
         <appender-ref ref="consoleAppender" />
     </root>

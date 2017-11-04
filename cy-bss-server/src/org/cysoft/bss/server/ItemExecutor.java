@@ -13,29 +13,30 @@ public abstract class ItemExecutor extends ForkJoinTask<Void>{
 	protected static final String RESULT_ITEM_OK="OK";
 	protected static final String RESULT_ITEM_NOK="NOK";
 
-	private ServerProcess parent=null;
+	private ServerProcess parentProcess=null;
 	private ServerQueueItem item=null;
 	
-	public ItemExecutor(ServerProcess parent, ServerQueueItem item){
+	public ItemExecutor(ServerProcess parentProcess, ServerQueueItem item){
 		super();
-		this.parent=parent;
+		this.parentProcess=parentProcess;
 		this.item=item;
 	}
 	
 	protected void startExecution(){
-		parent.serverService.startRunQueueItem(item.getId());
+		parentProcess.getServerService().startRunQueueItem(item.getId());
 	}
 		
 	protected void lock(){
-		parent.serverService.lockQueueItem(item.getId(), parent.server.getId());
+		parentProcess.getServerService().lockQueueItem(item.getId(), 
+				parentProcess.getServer().getId());
 	}
 	
 	protected void endExecution(String result){
-		parent.serverService.endRunQueueItem(item.getId(), result);
+		parentProcess.getServerService().endRunQueueItem(item.getId(), result);
 	}
 
-	protected ServerProcess getParent() {
-		return parent;
+	protected ServerProcess getParentProcess() {
+		return parentProcess;
 	}
 
 	protected ServerQueueItem getItem() {
@@ -43,7 +44,7 @@ public abstract class ItemExecutor extends ForkJoinTask<Void>{
 	}
 	
 	protected ServerQueueItem reloadItem(){
-		item=parent.serverService.getQueueItem(item.getId());
+		item=parentProcess.getServerService().getQueueItem(item.getId());
 		return item;
 	}
 	

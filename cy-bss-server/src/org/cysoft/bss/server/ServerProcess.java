@@ -12,7 +12,13 @@ import org.cysoft.bss.core.model.Sale;
 import org.cysoft.bss.core.model.Server;
 import org.cysoft.bss.core.model.ServerCommand;
 import org.cysoft.bss.core.model.ServerQueueItem;
+import org.cysoft.bss.core.service.CompanyService;
+import org.cysoft.bss.core.service.InvoiceService;
+import org.cysoft.bss.core.service.PurchaseService;
+import org.cysoft.bss.core.service.SaleService;
 import org.cysoft.bss.core.service.ServerService;
+import org.cysoft.bss.server.batch.Batch;
+import org.cysoft.bss.server.batch.impl.SianOlio;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,10 +35,41 @@ public class ServerProcess {
 	private static final String RESULT_COMMAND_NOK="NOK";
 	
 	@Autowired @Lazy
-	protected ServerService serverService;
+	private ServerService serverService;
+	public ServerService getServerService(){
+		return serverService;
+	}
+	
+	@Autowired @Lazy
+	private CompanyService companyService;
+	public CompanyService getCompanyService(){
+		return companyService;
+	}
+	
+	@Autowired @Lazy
+	private PurchaseService purchaseService;
+	public PurchaseService getPurchaseService(){
+		return purchaseService;
+	}
+	
+	@Autowired @Lazy
+	private SaleService saleService;
+	public SaleService getSaleService(){
+		return saleService;
+	}
+	
+	@Autowired @Lazy
+	private InvoiceService invoiceService;
+	public InvoiceService getInvoiceService(){
+		return invoiceService;
+	}
 	
 	private String nodeId;
-	protected Server server=null;
+	
+	private Server server=null;
+	public Server getServer(){
+		return server;
+	}
 	
 	private void init() throws CyBssException {
 		logger.info("NodeId="+nodeId);
@@ -167,4 +204,19 @@ public class ServerProcess {
 		serverService.endCommand(command.getId(),result);
 	}
 	
+	
+	private static String BATCH_SIAN_OLIO="SianOlio";
+	
+	public void runBatch(String... args) throws CyBssException{
+		logger.info("ServerProcess.runBatch() >>>");
+		
+		if (args[1].equalsIgnoreCase((BATCH_SIAN_OLIO))){
+			Batch batch=new SianOlio(this);
+			batch.exec();
+		}
+		else
+			logger.error("Invalid batch:"+args[1]);
+		
+		logger.info("ServerProcess.runBatch() <<<");
+	}
 }
