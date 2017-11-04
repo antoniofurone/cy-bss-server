@@ -9,11 +9,13 @@ import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
+import java.text.ParseException;
 import java.util.List;
 
 import org.cysoft.bss.core.common.CyBssException;
 import org.cysoft.bss.core.common.CyBssUtility;
 import org.cysoft.bss.core.model.Billable;
+import org.cysoft.bss.core.model.CommercialTransaction;
 import org.cysoft.bss.core.model.Company;
 import org.cysoft.bss.core.model.Invoice;
 import org.cysoft.bss.core.model.Purchase;
@@ -37,6 +39,14 @@ public class SianOlio extends BatchAdapter{
 	
 	private final long PURCHASE_OFFSET=1000000; 
 	private final long SALE_OFFSET=2000000; 
+	
+	private final long PERSON_OFFSET=3000000; 
+	private final long COMPANY_OFFSET=4000000; 
+	
+	private final String KG="kg";
+	
+	private String companyFiscalId;
+	private long factoryId=0;
 	
 	public SianOlio(ServerProcess parentProcess) {
 		super(parentProcess);
@@ -94,7 +104,6 @@ public class SianOlio extends BatchAdapter{
 		
 			System.out.println("Id Stabilimento ->");
 			String sFactoryId=br.readLine();
-			long factoryId=0; 
 			if (sFactoryId!=null && !sFactoryId.equals(""))
 				factoryId=Long.parseLong(sFactoryId);
 			
@@ -110,9 +119,10 @@ public class SianOlio extends BatchAdapter{
 			
 			String currentDate=CyBssUtility.dateToString(CyBssUtility.getCurrentDate(), CyBssUtility.DATE_ddMMyyyy);
 			String sProgFile=String.format("%05d",progFile);
-			String companyFiscalId=((company.getFiscalCode()==null||company.getFiscalCode().equals(""))?company.getVatCode():company.getFiscalCode());
+			companyFiscalId=((company.getFiscalCode()==null||company.getFiscalCode().equals(""))?company.getVatCode():company.getFiscalCode());
 			
 			String fileNameReg=companyFiscalId+"_"+currentDate+"_"+sProgFile+"_OPERREGI.TXT";
+			String fileNameCF=companyFiscalId+"_"+currentDate+"_"+sProgFile+"_ANAGFCTO.TXT";
 			String fileNameTrace=companyFiscalId+"_"+currentDate+"_"+sProgFile+"_TRACE.TXT";
 			
 			System.out.println("File di Carico/Scarico -> "+fileNameReg);
@@ -141,6 +151,11 @@ public class SianOlio extends BatchAdapter{
 					new BufferedWriter(new OutputStreamWriter(
 					new FileOutputStream(sOutputDir+File.separator+fileNameReg), 
 					StandardCharsets.UTF_8));
+			 
+			Writer bufAnagCF = 
+					new BufferedWriter(new OutputStreamWriter(
+					new FileOutputStream(sOutputDir+File.separator+fileNameCF), 
+					StandardCharsets.UTF_8));
 			
 			
 			// Purchases
@@ -150,56 +165,9 @@ public class SianOlio extends BatchAdapter{
 					"", "", sDataStart, sDataEnd);
 			
 			for(Purchase purchase:purchases){
-				
-				if (!purchase.getComponentCode().equals(PriceComponent.CODE_USG_QXP)){
-					bufTrace.write(PURCHASE_TRACE_PREFIX+"<"+purchase.getId()+">: Componente <> da "+ PriceComponent.CODE_USG_QXP);
-					bufTrace.write(CR);
+				if (!writeOperation(bufReg, bufTrace, purchase))
 					continue;
-				}
-				
-				List<Billable> billables=parentProcess.getPurchaseService().getBillables(purchase.getId());
-				long idInvoice=getIdInvoice(billables);
-				if (idInvoice==0){
-					bufTrace.write(PURCHASE_TRACE_PREFIX+"<"+purchase.getId()+">: Non ancora fatturato");
-					bufTrace.write(CR);
-					continue;
-				}
-				
-				Invoice invoice=parentProcess.getInvoiceService().get("P", idInvoice);
-				
-				
-				bufReg.write(String.format("%-16s",companyFiscalId ));
-				bufReg.write(FIELD_SEP);
-				
-				bufReg.write(String.format("%010d",factoryId ));
-				bufReg.write(FIELD_SEP);
-				
-				bufReg.write(String.format("%010d",PURCHASE_OFFSET+purchase.getId()));
-				bufReg.write(FIELD_SEP);
-				
-				bufReg.write(CyBssUtility.dateToString(CyBssUtility.tryStringToDate(purchase.getDate()),
-						CyBssUtility.DATE_ddMMyyyy));
-				bufReg.write(FIELD_SEP);
-				
-				bufReg.write(String.format("%-10s",invoice.getNumber() ));
-				bufReg.write(FIELD_SEP);
-				
-				bufReg.write(CyBssUtility.dateToString(CyBssUtility.tryStringToDate(invoice.getDate()),
-						CyBssUtility.DATE_ddMMyyyy));
-				bufReg.write(FIELD_SEP);
-				
-				// codice operazione
-				bufReg.write(String.format("%-10s","A4"));
-				bufReg.write(FIELD_SEP);
-				
-				
-				bufReg.write(ROW_SEP);
-				
-				bufTrace.write(PURCHASE_TRACE_PREFIX+"<"+purchase.getId()+">: OK");
-				bufTrace.write(CR);
-				
 			}
-			
 			
 			//Sales
 			List<Sale> sales=parentProcess.getSaleService().find(companyId, productId,"",
@@ -208,59 +176,15 @@ public class SianOlio extends BatchAdapter{
 					"", "", sDataStart, sDataEnd);
 			
 			for(Sale sale:sales){
-				
-				if (!sale.getComponentCode().equals(PriceComponent.CODE_USG_QXP)){
-					bufTrace.write(SALE_TRACE_PREFIX+"<"+sale.getId()+">: Componente <> da "+ PriceComponent.CODE_USG_QXP);
-					bufTrace.write(CR);
+				if (!writeOperation(bufReg, bufTrace, sale))
 					continue;
-				}
-				
-				List<Billable> billables=parentProcess.getSaleService().getBillables(sale.getId());
-				long idInvoice=getIdInvoice(billables);
-				if (idInvoice==0){
-					bufTrace.write(SALE_TRACE_PREFIX+"<"+sale.getId()+">: Non ancora fatturato");
-					bufTrace.write(CR);
-					continue;
-				}
-				
-				Invoice invoice=parentProcess.getInvoiceService().get("A", idInvoice);
-				
-				bufReg.write(String.format("%-16s",companyFiscalId ));
-				bufReg.write(FIELD_SEP);
-				
-				bufReg.write(String.format("%010d",factoryId ));
-				bufReg.write(FIELD_SEP);
-		
-				bufReg.write(String.format("%010d",SALE_OFFSET+sale.getId()));
-				bufReg.write(FIELD_SEP);
-				
-				bufReg.write(CyBssUtility.dateToString(CyBssUtility.tryStringToDate(sale.getDate()),
-						CyBssUtility.DATE_ddMMyyyy));
-				bufReg.write(FIELD_SEP);
-				
-				bufReg.write(String.format("%-10s",invoice.getNumber() ));
-				bufReg.write(FIELD_SEP);
-				
-				bufReg.write(CyBssUtility.dateToString(CyBssUtility.tryStringToDate(invoice.getDate()),
-						CyBssUtility.DATE_ddMMyyyy));
-				bufReg.write(FIELD_SEP);
-				
-				// codice operazione
-				bufReg.write(String.format("%-10s","A9"));
-				bufReg.write(FIELD_SEP);
-				
-				
-				bufReg.write(ROW_SEP);
-				
-				bufTrace.write(SALE_TRACE_PREFIX+"<"+sale.getId()+">: OK");
-				bufTrace.write(CR);
-				
 			}
 			
 			
 			bufTrace.write("<..."+CR);
 			bufTrace.close();
 			
+			bufAnagCF.close();
 			bufReg.close();
 			
 			
@@ -292,5 +216,142 @@ public class SianOlio extends BatchAdapter{
 		return idInvoice;
 	}
 	
+	private boolean writeOperation(Writer writerOp,Writer tracer,CommercialTransaction trans) 
+			throws IOException, CyBssException, ParseException{
+		
+		boolean isPurchase=false;
+		String TRACE_PREFIX=SALE_TRACE_PREFIX;
+		
+		if (trans instanceof Purchase){
+			isPurchase=true;
+			TRACE_PREFIX=PURCHASE_TRACE_PREFIX;
+		}
+		
+		
+		if (!trans.getComponentCode().equals(PriceComponent.CODE_USG_QXP)){
+			tracer.write(TRACE_PREFIX+"<"+trans.getId()+">: Componente <> da "+ PriceComponent.CODE_USG_QXP);
+			tracer.write(CR);
+			return false;
+		}
+		
+		List<Billable> billables=null;
+		if (isPurchase)
+			billables=parentProcess.getPurchaseService().getBillables(trans.getId());
+		else
+			billables=parentProcess.getSaleService().getBillables(trans.getId());
+		
+		long idInvoice=getIdInvoice(billables);
+		if (idInvoice==0){
+			tracer.write(TRACE_PREFIX+"<"+trans.getId()+">: Non ancora fatturato");
+			tracer.write(CR);
+			return false;
+		}
+		
+		Invoice invoice=parentProcess.getInvoiceService().get(isPurchase?"P":"A", idInvoice);
+		if (!trans.getQtyUmSimbol().equalsIgnoreCase(KG)){
+			tracer.write(TRACE_PREFIX+"<"+trans.getId()+">: Um <> "+KG);
+			tracer.write(CR);
+			return false;
+		}
+		
+		writerOp.write(String.format("%-16s",companyFiscalId ));
+		writerOp.write(FIELD_SEP);
+		
+		writerOp.write(String.format("%010d",factoryId));
+		writerOp.write(FIELD_SEP);
+		
+		writerOp.write(String.format("%010d",isPurchase?PURCHASE_OFFSET+trans.getId():SALE_OFFSET+trans.getId()));
+		writerOp.write(FIELD_SEP);
+		
+		writerOp.write(CyBssUtility.dateToString(CyBssUtility.tryStringToDate(trans.getDate()),
+				CyBssUtility.DATE_ddMMyyyy));
+		writerOp.write(FIELD_SEP);
+		
+		writerOp.write(String.format("%-10s",invoice.getNumber() ));
+		writerOp.write(FIELD_SEP);
+		
+		writerOp.write(CyBssUtility.dateToString(CyBssUtility.tryStringToDate(invoice.getDate()),
+				CyBssUtility.DATE_ddMMyyyy));
+		writerOp.write(FIELD_SEP);
+		
+		// codice operazione
+		writerOp.write(String.format("%-10s", isPurchase?"A4":"A9"));
+		writerOp.write(FIELD_SEP);
+		
+		// cliente/fornitore
+		long idCF=0;
+		if (trans.getPersonId()==0)
+			idCF=COMPANY_OFFSET+(isPurchase?((Purchase)trans).getSupplierId():
+				((Sale)trans).getCustomerId());
+		else
+			idCF=PERSON_OFFSET+trans.getPersonId();
+		writerOp.write(String.format("%010d",idCF));
+		writerOp.write(FIELD_SEP);
+		
+		// committente
+		writerOp.write(String.format("%010d",0));
+		writerOp.write(FIELD_SEP);
+		
+		// quantitativo carico
+		if (isPurchase)
+			writerOp.write(String.format("%013d",(long)Math.round(trans.getQty()*1000)));
+		else
+			writerOp.write(String.format("%013d",0));
+		
+		
+		writerOp.write(ROW_SEP);
+		
+		tracer.write(TRACE_PREFIX+"<"+trans.getId()+">: OK");
+		tracer.write(CR);
+
+		return true;
+	}
 	
+	
+	/*
+	I campi sempre obbligatori, per qualsiasi operazione, sono :
+		Identificativo dell'impresa (campo con progressivo 1)
+		Identificativo dello stabilimento (campo con progressivo 2)
+		Numero operazione (campo con progressivo 3)
+		Data operazione (campo con progressivo 4)
+		Codice operazione (campo con progressivo 7)
+		Tipo record (campo con progressivo 49)
+	
+	A4 - Carico di olive da ditta italiana
+	
+	obbligatori ->
+	5-numero documento giustificativo;
+	6-data documento giustificativo;
+	8-codice soggetto fornitore/cliente;
+	10-carico olive;
+	17-origine macroarea(18-origine specifica);
+	
+	facoltativi - >
+	9-codice soggetto committente;
+	18-origine specifica;
+	29-note;
+	35-flag biologico o 37-flag in conversione;
+	41-data/ora raccolta olive;
+	43-annata;
+	I campi DOP da valorizzare solo se previsti dal relativo disciplinare altrimenti sono non richiesti.
+	
+	
+	A9 - Scarico/vendita di olive a ditta italiana
+	
+	5-numero documento giustificativo;
+	6-data documento giustificativo;
+	8-codice soggetto fornitore/cliente;
+	11-scarico olive;
+	17-origine macroarea(18-origine specifica);
+	
+	facoltativi ->
+	9-codice soggetto committente;
+	18-origine specifica;
+	29-note;
+	35-flag biologico o 37-flag in conversione;
+	41-data/ora raccolta olive;
+	43-annata;
+	I campi DOP da valorizzare solo se previsti dal relativo disciplinare altrimenti sono non richiesti.
+	
+	*/
 }
