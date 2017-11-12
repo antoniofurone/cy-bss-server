@@ -14,6 +14,8 @@ import org.cysoft.bss.core.model.ServerCommand;
 import org.cysoft.bss.core.model.ServerQueueItem;
 import org.cysoft.bss.core.service.CompanyService;
 import org.cysoft.bss.core.service.InvoiceService;
+import org.cysoft.bss.core.service.ObjectService;
+import org.cysoft.bss.core.service.PersonService;
 import org.cysoft.bss.core.service.PurchaseService;
 import org.cysoft.bss.core.service.SaleService;
 import org.cysoft.bss.core.service.ServerService;
@@ -41,9 +43,21 @@ public class ServerProcess {
 	}
 	
 	@Autowired @Lazy
+	private ObjectService objectService;
+	public ObjectService getObjectService(){
+		return objectService;
+	}
+	
+	@Autowired @Lazy
 	private CompanyService companyService;
 	public CompanyService getCompanyService(){
 		return companyService;
+	}
+	
+	@Autowired @Lazy
+	private PersonService personService;
+	public PersonService getPersonService(){
+		return personService;
 	}
 	
 	@Autowired @Lazy
