@@ -4,6 +4,7 @@ import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
@@ -11,7 +12,9 @@ import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.text.ParseException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.cysoft.bss.core.common.CyBssException;
 import org.cysoft.bss.core.common.CyBssUtility;
@@ -51,12 +54,21 @@ public class SianOlio extends BatchAdapter{
 	private final String INVOICE_DATE_ATTR="Data Fattura";
 	private final String SIAN_ID_ATTR="Sian Id";
 	
+	private final String CODICI_ISTAT_FILE="CodiciISTAT.csv";
+	
 	private final String KG="kg";
 	
 	private String companyFiscalId;
 	private long factoryId=0;
 	
-	List<Long> lCustSuppliers=null;
+	
+	class IstatCode{
+		public String provincia;
+		public String comune;
+	}
+	
+	List<Long> custSuppliersList=null;
+	Map<Long, IstatCode> istatCodesMap=null;
 	
 	public SianOlio(ServerProcess parentProcess) {
 		super(parentProcess);
@@ -77,10 +89,10 @@ public class SianOlio extends BatchAdapter{
 				homeDir=System.getProperty("user.home"); 
 			System.out.println("CyBusiness Home ->"+homeDir);
 			
-			String sOutputDir=homeDir+File.separator+this.getClass().getSimpleName();
-			System.out.println("Output Directory ->"+sOutputDir);
+			String sWorkDir=homeDir+File.separator+this.getClass().getSimpleName();
+			System.out.println("Work Directory ->"+sWorkDir);
 			
-			File outputDir=new File(sOutputDir);
+			File outputDir=new File(sWorkDir);
 			if (!outputDir.exists())
 				outputDir.mkdir();
 			
@@ -122,8 +134,26 @@ public class SianOlio extends BatchAdapter{
 			if (sCR!=null && sCR.equalsIgnoreCase("Y"))
 				ROW_SEP+="\n";
 			
-			lCustSuppliers=new ArrayList<Long>();
+			custSuppliersList=new ArrayList<Long>();
+			istatCodesMap=new HashMap<Long,IstatCode>();
 			
+			String fileNameIstat=sWorkDir+File.separator+CODICI_ISTAT_FILE;
+			BufferedReader bCsv = new BufferedReader(new FileReader(fileNameIstat));
+			
+			String line="";
+			while ((line = bCsv.readLine()) != null) {
+                String[] aIc = line.split(";");
+                
+                Long key=Long.parseLong(aIc[0]);
+                
+                IstatCode ic=new IstatCode();
+                ic.provincia=aIc[1];
+                ic.comune=aIc[2];
+                
+                istatCodesMap.put(key, ic);
+            }
+			bCsv.close();
+		
 			Company company=parentProcess.getCompanyService().getManaged(companyId);
 			if (company==null)
 				throw new CyBssException("Azienda con id <"+companyId+"> non trovata !");
@@ -142,7 +172,7 @@ public class SianOlio extends BatchAdapter{
 			
 			Writer bufTrace = 
 					new BufferedWriter(new OutputStreamWriter(
-					new FileOutputStream(sOutputDir+File.separator+fileNameTrace), 
+					new FileOutputStream(sWorkDir+File.separator+fileNameTrace), 
 					StandardCharsets.UTF_8));
 			
 			bufTrace.write("Parametri di input -> companyId:"+companyId+";productId="+productId
@@ -161,12 +191,12 @@ public class SianOlio extends BatchAdapter{
 			
 			Writer bufReg = 
 					new BufferedWriter(new OutputStreamWriter(
-					new FileOutputStream(sOutputDir+File.separator+fileNameReg), 
+					new FileOutputStream(sWorkDir+File.separator+fileNameReg), 
 					StandardCharsets.UTF_8));
 			 
 			Writer bufAnagCF = 
 					new BufferedWriter(new OutputStreamWriter(
-					new FileOutputStream(sOutputDir+File.separator+fileNameCF), 
+					new FileOutputStream(sWorkDir+File.separator+fileNameCF), 
 					StandardCharsets.UTF_8));
 			
 			
@@ -299,7 +329,7 @@ public class SianOlio extends BatchAdapter{
 				return false;
 			}
 			
-			attrInvoiceNum=parentProcess.getObjectService().getAttributeValue(cyObject.getId(), attrInvoiceNum.getId());
+			attrInvoiceNum=parentProcess.getObjectService().getAttributeValue(attrInvoiceNum.getId(),trans.getId());
 			if (attrInvoiceNum==null || attrInvoiceNum.getValue()==null || attrInvoiceNum.getValue().equals("")){
 				tracer.write(TRACE_PREFIX+"<"+trans.getId()+">: Attribute <"+INVOICE_NUMBER_ATTR+"> non trovato o non valorizzato");
 				tracer.write(CR);
@@ -308,7 +338,7 @@ public class SianOlio extends BatchAdapter{
 			else
 				sInvoiceNumber=attrInvoiceNum.getValue();
 			
-			attrInvoiceDate=parentProcess.getObjectService().getAttributeValue(cyObject.getId(), attrInvoiceDate.getId());
+			attrInvoiceDate=parentProcess.getObjectService().getAttributeValue(attrInvoiceDate.getId(),trans.getId());
 			if (attrInvoiceDate==null || attrInvoiceDate.getValue()==null || attrInvoiceDate.getValue().equals("")){
 				tracer.write(TRACE_PREFIX+"<"+trans.getId()+">: Attribute <"+INVOICE_DATE_ATTR+"> non trovato o non valorizzato");
 				tracer.write(CR);
@@ -343,8 +373,9 @@ public class SianOlio extends BatchAdapter{
 			
 			Attribute attrSianId=parentProcess.getObjectService().getAttributeByName(cyObject.getId(), SIAN_ID_ATTR);
 			if (attrSianId!=null){
-				attrSianId=parentProcess.getObjectService().getAttributeValue(cyObject.getId(), attrSianId.getId());
-				if (attrSianId!=null && attrSianId.getValue()!=null && attrSianId.getValue().equals(""))
+				attrSianId=parentProcess.getObjectService().getAttributeValue(attrSianId.getId(),(isPurchase?((Purchase)trans).getSupplierId():
+					((Sale)trans).getCustomerId()));
+				if (attrSianId!=null && attrSianId.getValue()!=null && !attrSianId.getValue().equals(""))
 					idCustomerSupplier=Long.parseLong(attrSianId.getValue());
 					
 			}
@@ -376,25 +407,36 @@ public class SianOlio extends BatchAdapter{
 			custSuppl.setAddress(person.getAddress());
 			custSuppl.setCity(person.getCity());
 			custSuppl.setFiscalCode(person.getFiscalCode());
+			custSuppl.setCityId(person.getCityId());
 			custSuppl.setZipCode(person.getZipCode());
 			
 			Attribute attrSianId=parentProcess.getObjectService().getAttributeByName(cyObject.getId(), SIAN_ID_ATTR);
 			if (attrSianId!=null){
-				attrSianId=parentProcess.getObjectService().getAttributeValue(cyObject.getId(), attrSianId.getId());
-				if (attrSianId!=null && attrSianId.getValue()!=null && attrSianId.getValue().equals(""))
+				attrSianId=parentProcess.getObjectService().getAttributeValue(attrSianId.getId(),person.getId());
+				if (attrSianId!=null && attrSianId.getValue()!=null && !attrSianId.getValue().equals(""))
 					idCustomerSupplier=Long.parseLong(attrSianId.getValue());
 			}
 			
 			
 		}
 		
+		String provIstatCode="";
+		String comIstatCode="";
+		
+		IstatCode ic=istatCodesMap.get(custSuppl.getCityId());
+		if (ic==null){
+			tracer.write(TRACE_PREFIX+"<"+trans.getId()+">: Codici istat non trovati per comune <"+custSuppl.getCityId()+"> non trovato");
+			tracer.write(CR);
+			return false;
+		}
+		provIstatCode=ic.provincia;
+		comIstatCode=ic.comune;
 		
 		if (!trans.getQtyUmSimbol().equalsIgnoreCase(KG)){
 			tracer.write(TRACE_PREFIX+"<"+trans.getId()+">: Um <> "+KG);
 			tracer.write(CR);
 			return false;
 		}
-		
 		
 		//1. CUAA (Codice fiscale o partita IVA) dell'impresa
 		writerOp.write(String.format("%-16s",companyFiscalId ));
@@ -604,7 +646,7 @@ public class SianOlio extends BatchAdapter{
 		writerOp.write(ROW_SEP);
 		
 		// Customer/Supplier
-		if (!lCustSuppliers.contains(idCustomerSupplier)){
+		if (!custSuppliersList.contains(idCustomerSupplier)){
 			
 			//1. CUAA (Codice fiscale o partita IVA) dell'impresa
 			writerCF.write(String.format("%-16s",companyFiscalId ));
@@ -638,15 +680,15 @@ public class SianOlio extends BatchAdapter{
 			writerCF.write(FIELD_SEP);
 			
 			//8. Codice istat provincia
-			writerCF.write("???");
+			writerCF.write(provIstatCode);
 			writerCF.write(FIELD_SEP);
 			
 			//9. Codice istat comune
-			writerCF.write("???");
+			writerCF.write(comIstatCode);
 			
 			writerCF.write(ROW_SEP);
 			
-			lCustSuppliers.add(idCustomerSupplier);
+			custSuppliersList.add(idCustomerSupplier);
 		}
 		
 		
